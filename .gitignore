@@ -1,0 +1,27 @@
+# ===== Rust =====
+/target
+Cargo.lock
+**/*.rs.bk
+
+# ===== Environment / Secrets =====
+.env
+.env.*
+*.key
+*.pem
+secrets/
+keys/
+
+# ===== Runtime / DA =====
+data/
+blocks/
+db/
+mempool/
+*.json
+
+# ===== Editor =====
+.vscode/
+.idea/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
