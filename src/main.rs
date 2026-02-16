@@ -37,6 +37,7 @@ struct AppState {
 }
 
 impl Block {
+    #[allow(dead_code)]
     fn new(height: u64, prev_hash: String, txs: Vec<Tx>) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(height.to_be_bytes());
@@ -165,7 +166,15 @@ async fn ws_connection(mut socket: WebSocket, state: Arc<AppState>) {
         tokio::select! {
             Ok(tx) = rx.recv() => {
                 let msg = serde_json::to_string(&tx).unwrap();
-                let _ = socket.send(Message::Text(msg)).await;
+                if socket.send(Message::Text(msg)).await.is_err() {
+                    break;
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(_)) => {},
+                    _ => break,
+                }
             }
         }
     }
