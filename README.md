@@ -74,7 +74,7 @@ Prerequisites: Rust toolchain (use `rustup`).
 Clone and run:
 
 ```bash
-git clone https://github.com/your-username/mentsequen.git
+git clone https://github.com/sidg767/mentsequen.git
 cd mentsequen
 cargo run
 ```
