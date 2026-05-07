@@ -1,23 +1,29 @@
-use std::{sync::{Arc, RwLock}, net::SocketAddr};
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{
-        Path,
         Extension,
-        ws::{WebSocket, WebSocketUpgrade, Message},
+        Path,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
+    http::StatusCode,
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
-    response::IntoResponse,
 };
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, RwLock};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Tx {
     id: String,
+    data: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct NewTx {
     data: String,
 }
 
@@ -37,7 +43,6 @@ struct AppState {
 }
 
 impl Block {
-    #[allow(dead_code)]
     fn new(height: u64, prev_hash: String, txs: Vec<Tx>) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(height.to_be_bytes());
@@ -58,15 +63,10 @@ impl Block {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (tx_sender, _) = broadcast::channel(32);
 
-    let genesis = Block {
-        height: 0,
-        hash: "0".repeat(64),
-        prev_hash: "0".repeat(64),
-        txs: vec![],
-    };
+    let genesis = Block::new(0, "0".repeat(64), vec![]);
 
     let state = Arc::new(AppState {
         mempool: RwLock::new(Vec::new()),
@@ -87,33 +87,42 @@ async fn main() {
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .unwrap();
+        .await?;
+
+    Ok(())
 }
 
 async fn handle_tx(
     Extension(state): Extension<Arc<AppState>>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<NewTx>,
 ) -> impl IntoResponse {
+    let data = payload.data.trim();
+    if data.is_empty() || data.len() > 4096 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid data"})),
+        );
+    }
+
     let tx = Tx {
         id: Uuid::new_v4().to_string(),
-        data: payload["data"].as_str().unwrap_or("").to_string(),
+        data: data.to_string(),
     };
 
     {
-        let mut guard = state.mempool.write().unwrap();
+        let mut guard = state.mempool.write().await;
         guard.push(tx.clone());
     }
 
     let _ = state.tx_broadcast.send(tx);
 
-    Json("ok")
+    (StatusCode::CREATED, Json(serde_json::json!({"status": "ok"})))
 }
 
 async fn handle_mempool(
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let guard = state.mempool.read().unwrap();
+    let guard = state.mempool.read().await;
     Json(guard.clone())
 }
 
@@ -121,13 +130,24 @@ async fn handle_block(
     Path(height): Path<u64>,
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let guard = state.chain.read().unwrap();
+    let guard = state.chain.read().await;
 
-    if let Some(b) = guard.get(height as usize) {
+    let index = match usize::try_from(height) {
+        Ok(index) => index,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "invalid block height"})),
+            )
+                .into_response();
+        }
+    };
+
+    if let Some(b) = guard.get(index) {
         Json(b.clone()).into_response()
     } else {
         (
-            axum::http::StatusCode::NOT_FOUND,
+            StatusCode::NOT_FOUND,
             Json(serde_json::json!({"error":"not found"})),
         )
             .into_response()
@@ -137,13 +157,13 @@ async fn handle_block(
 async fn handle_head(
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let guard = state.chain.read().unwrap();
+    let guard = state.chain.read().await;
 
     if let Some(b) = guard.last() {
         Json(b.clone()).into_response()
     } else {
         (
-            axum::http::StatusCode::OK,
+            StatusCode::OK,
             Json(serde_json::json!({"head": null})),
         )
             .into_response()
@@ -165,8 +185,11 @@ async fn ws_connection(mut socket: WebSocket, state: Arc<AppState>) {
     loop {
         tokio::select! {
             Ok(tx) = rx.recv() => {
-                let msg = serde_json::to_string(&tx).unwrap();
-                if socket.send(Message::Text(msg)).await.is_err() {
+                if let Ok(msg) = serde_json::to_string(&tx) {
+                    if socket.send(Message::Text(msg)).await.is_err() {
+                        break;
+                    }
+                } else {
                     break;
                 }
             }
