@@ -195,8 +195,27 @@ async fn ws_connection(mut socket: WebSocket, state: Arc<AppState>) {
             }
             msg = socket.recv() => {
                 match msg {
-                    Some(Ok(_)) => {},
-                    _ => break,
+                    Some(Ok(Message::Text(text))) => {
+                        if serde_json::from_str::<serde_json::Value>(&text).is_err() {
+                            let _ = socket.send(Message::Close(None)).await;
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Binary(_))) => {
+                        let _ = socket.send(Message::Close(None)).await;
+                        break;
+                    }
+                    Some(Ok(Message::Ping(payload))) => {
+                        if socket.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Close(frame))) => {
+                        let _ = socket.send(Message::Close(frame)).await;
+                        break;
+                    }
+                    Some(Ok(Message::Pong(_))) => {}
+                    Some(Err(_)) | None => break,
                 }
             }
         }
