@@ -1,6 +1,6 @@
-use parking_lot::Mutex;
-use once_cell::sync::Lazy;
 use crate::tx::Transaction;
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 
 pub static MEMPOOL: Lazy<Mutex<Vec<Transaction>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
@@ -21,4 +21,3 @@ pub fn list_mempool() -> Vec<Transaction> {
 pub fn len() -> usize {
     MEMPOOL.lock().len()
 }
-

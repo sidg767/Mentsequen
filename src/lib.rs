@@ -1,5 +1,5 @@
-pub mod tx;
 pub mod block;
-pub mod mempool;
 pub mod da;
+pub mod mempool;
+pub mod tx;
 pub mod verify;

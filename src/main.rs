@@ -1,19 +1,18 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
+    Json, Router,
     extract::{
-        Extension,
-        Path,
+        Extension, Path,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,12 +115,13 @@ async fn handle_tx(
 
     let _ = state.tx_broadcast.send(tx);
 
-    (StatusCode::CREATED, Json(serde_json::json!({"status": "ok"})))
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"status": "ok"})),
+    )
 }
 
-async fn handle_mempool(
-    Extension(state): Extension<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn handle_mempool(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
     let guard = state.mempool.read().await;
     Json(guard.clone())
 }
@@ -154,19 +154,13 @@ async fn handle_block(
     }
 }
 
-async fn handle_head(
-    Extension(state): Extension<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn handle_head(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
     let guard = state.chain.read().await;
 
     if let Some(b) = guard.last() {
         Json(b.clone()).into_response()
     } else {
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({"head": null})),
-        )
-            .into_response()
+        (StatusCode::OK, Json(serde_json::json!({"head": null}))).into_response()
     }
 }
 
