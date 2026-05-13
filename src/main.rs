@@ -1,19 +1,27 @@
-use std::{net::SocketAddr, sync::Arc};
-
+///Logic
+/// A sequencer is a network service, it must: listen for transactions, expose APIs, 
+/// accept websocket connections, communicate with validators/nodes.
+/// It needs Arc(shared ownership, for heap data, across threads, immutable by default but mut with mutex/rwlock)
+/// Sequencers need arc cuz highly concurrent, websocket handlers, mempool updates, block prod, stae readers, 
+/// rpc handlers all need access to shared state. Axum is the HTTP/websocket framework, router defines api routes, 
+/// needed cuz sequencer exposes endpoints for submitting transacs, etc.
+/// 
+use std::{net::SocketAddr, sync::Arc}; ///SocketAddr gives Ip + Port
 use axum::{
-    Json, Router,
-    extract::{
+    Json, Router, // json automatically serial, deserial json, 
+    extract::{ //extension injects shared application state into handlers, path extracts variables from url, 
+        //ws handles websocket support and upgarde  from HTTP to Websocket
         Extension, Path,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::StatusCode,
-    response::IntoResponse,
+    http::StatusCode, //returns HTTP status codes, needed for api responses, like statuscode:::ok, bad_request, not_found, etc.
+    response::IntoResponse, 
     routing::{get, post},
 };
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use tokio::sync::{RwLock, broadcast};
-use uuid::Uuid;
+use serde::{Deserialize, Serialize}; //rust structs to json, binary and vice versa, needed for api payloads, responses, websocket messages, etc.
+use sha2::{Digest, Sha256}; //digest is the trait proving the hashing fn
+use tokio::sync::{RwLock, broadcast}; //broadcast is a publish-subscribe channel, many clients subscribe at once, then all recieve the updates, needed for websocket notifications of new transactions
+use uuid::Uuid; //generates unique request ids, session ids, transaction ids, etc. 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Tx {
