@@ -1,9 +1,12 @@
 use axum::{
-    extract::{Extension, Path, ws::{Message, WebSocket, WebSocketUpgrade}},
-    http::StatusCode,
-  response::IntoResponse,
-    routing::{get, post},
     Json, Router,
+    extract::{
+        Extension, Path,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -18,11 +21,11 @@ struct NewTx {
 pub fn router(state: Arc<SequencerState>) -> Router {
     Router::new()
         .route("/tx", post(handle_tx))
-       .route("/mempool", get(handle_mempool))
+        .route("/mempool", get(handle_mempool))
         .route("/block/:height", get(handle_block))
         .route("/head", get(handle_head))
         .route("/ws", get(ws_handler))
-       .layer(Extension(state))
+        .layer(Extension(state))
 }
 async fn handle_tx(
     Extension(state): Extension<Arc<AppState>>,
@@ -123,7 +126,6 @@ async fn ws_handler(
         ws_connection(socket, state).await;
     })
 }
-
 
 async fn ws_connection(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.tx_broadcast.subscribe();

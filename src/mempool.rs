@@ -1,23 +1,35 @@
 use crate::tx::Transaction;
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-pub static MEMPOOL: Lazy<Mutex<Vec<Transaction>>> = Lazy::new(|| Mutex::new(Vec::new()));
-
-pub fn add_tx(tx: Transaction) {
-    MEMPOOL.lock().push(tx);
+#[derive(Clone)]
+pub struct Mempool {
+    inner: Arc<RwLock<Vec<Transaction>>>,
 }
 
-pub fn drain_mempool(count: usize) -> Vec<Transaction> {
-    let mut guard = MEMPOOL.lock();
-    let take = count.min(guard.len());
-    guard.drain(0..take).collect()
-}
+impl Mempool {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
 
-pub fn list_mempool() -> Vec<Transaction> {
-    MEMPOOL.lock().clone()
-}
+    pub async fn add_tx(&self, tx: Transaction) {
+        let mut guard = self.inner.write().await;
+        guard.push(tx);
+    }
 
-pub fn len() -> usize {
-    MEMPOOL.lock().len()
+    pub async fn drain(&self, count: usize) -> Vec<Transaction> {
+        let mut guard = self.inner.write().await;
+        let take = count.min(guard.len());
+        guard.drain(0..take).collect()
+    }
+
+    pub async fn list(&self) -> Vec<Transaction> {
+        self.inner.read().await.clone()
+    }
+
+    pub async fn len(&self) -> usize {
+        self.inner.read().await.len()
+    }
 }

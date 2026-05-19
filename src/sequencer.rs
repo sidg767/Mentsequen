@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use anyhow::Result;
-use tokio::sync::{broadcast, RwLock};
+use std::sync::Arc;
+use tokio::sync::{RwLock, broadcast};
 
 use crate::{block::Block, da::DALayer, mempool::Mempool, tx::Transaction, verify::verify_ed25519};
 
@@ -8,7 +8,7 @@ pub struct SequencerState {
     pub chain: RwLock<Vec<Block>>,
     pub mempool: Mempool,
     pub tx_broadcast: broadcast::Sender<Transaction>,
-   pub dal: DALayer,
+    pub dal: DALayer,
 }
 
 impl SequencerState {
@@ -46,7 +46,7 @@ impl SequencerState {
         self.dal.persist_block(&block)?;
         chain.push(block.clone());
         Ok(block)
-   }
+    }
 
     pub async fn head(&self) -> Option<Block> {
         self.chain.read().await.last().cloned()
