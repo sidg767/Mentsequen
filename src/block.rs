@@ -10,7 +10,17 @@ pub struct Block {
     pub merkle_root: String,
     pub hash: String,
 }
-
+// Constructor creates a new block, computes its hash based on height(block no.), prev_hash, and
+    //transactions. Real blockchain sequencers also hash: timestamp, proposer/sequencer address,
+    //state root, transaction Merkle root, receipts root, gas usage, signature, nonce. This implementation
+    // is NOT canonical-safe for production because concatenation can collide logically. Eg tx1.id = "ab"
+    //tx1.data = "cd", tx1.id = "abc" tx1.data = "d" both give "abcd" as input, real sequencer would also
+    //include a block header struct with  height: u64, prev_hash: Hash, state_root: Hash, tx_root: Hash,
+    //timestamp: u64, sequencer: Address, then hash(header), instead of hashing raw txs directly.
+    //Sequential hashing gives integrity of entire block, but not efficient membership proofs.
+    //Modern blockchains need proofs, so they use merkle trees to hash transactions, then include the
+    //merkle root in the block header, so you can verify a tx is in a block with a short proof.
+    //Sequential takes O(n) to verify a tx is in a block, merkle takes O(log n).
 impl Block {
     pub fn new(height: u64, prev_hash: String, txs: Vec<Transaction>) -> Self {
         let merkle = Self::merkle_root(&txs);
