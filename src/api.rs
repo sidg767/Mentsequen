@@ -28,7 +28,7 @@ pub fn router(state: Arc<SequencerState>) -> Router {
         .layer(Extension(state))
 }
 async fn handle_tx(
-    Extension(state): Extension<Arc<AppState>>,
+    Extension(state): Extension<Arc<SequencerState>>,
     Json(payload): Json<NewTx>,
 ) -> impl IntoResponse {
     let data = payload.data.trim();
@@ -39,17 +39,10 @@ async fn handle_tx(
             Json(serde_json::json!({"error": "invalid data"})),
         );
     }
-    // sequencers hv deterministic ids, simple version here
-    let tx = Tx {
-        id: Uuid::new_v4().to_string(),
-        data: data.to_string(),
-    };
+    let tx = Transaction::new(data.to_string());
     // requesting write access to shared mempool, scope is needed cuz Lock is released right after insertion. Holding locks
     // too long causes contention, latency, throughput collapse. Real sequencers carefully minimize lock duration.
-    {
-        let mut guard = state.mempool.write().await;
-        guard.push(tx.clone());
-    }
+    state.mempool.add_tx(tx.clone()).await;
 
     //publish tx to all subscribers. let _ means ignore possible errors
     let _ = state.tx_broadcast.send(tx);
@@ -67,14 +60,13 @@ async fn handle_tx(
 //acquires a read lock on the mempool, allowing concurrent reads but blocking writes. The handler clones the mempool
 // transactions and returns them as a JSON response. Real sequencers may paginate this response or return only transaction
 // summaries to avoid large payloads.
-async fn handle_mempool(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
-    let guard = state.mempool.read().await;
-    Json(guard.clone())
+async fn handle_mempool(Extension(state): Extension<Arc<SequencerState>>) -> impl IntoResponse {
+    Json(state.mempool.list().await)
 }
 // get block by height, block 0 gets genesis, block 1 gets 1st block after genesis, etc.
 async fn handle_block(
     Path(height): Path<u64>,
-    Extension(state): Extension<Arc<AppState>>,
+    Extension(state): Extension<Arc<SequencerState>>,
 ) -> impl IntoResponse {
     let guard = state.chain.read().await;
 
@@ -104,7 +96,7 @@ async fn handle_block(
 }
 
 //returns latest block in the chain
-async fn handle_head(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
+async fn handle_head(Extension(state): Extension<Arc<SequencerState>>) -> impl IntoResponse {
     let guard = state.chain.read().await;
     // last returns last element of vec, the latest block
     if let Some(b) = guard.last() {
@@ -120,14 +112,14 @@ async fn handle_head(Extension(state): Extension<Arc<AppState>>) -> impl IntoRes
 // this upgrades http to ws, blockchain data changes continuously, polling is ineffecient
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    Extension(state): Extension<Arc<AppState>>,
+    Extension(state): Extension<Arc<SequencerState>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
         ws_connection(socket, state).await;
     })
 }
 
-async fn ws_connection(mut socket: WebSocket, state: Arc<AppState>) {
+async fn ws_connection(mut socket: WebSocket, state: Arc<SequencerState>) {
     let mut rx = state.tx_broadcast.subscribe();
 
     loop {
