@@ -1,12 +1,15 @@
 use anyhow::Result;
-use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 
 use crate::{block::Block, da::DALayer, mempool::Mempool, tx::Transaction, verify::verify_ed25519};
 
+/// Shared global state of sequencer, this is stored in axum::extract::State<AppState> and shared across request handlers, background tasks, websocket connections, miners, and networking logic.
 pub struct SequencerState {
+    // This is the blockchain, stores blocks in order
     pub chain: RwLock<Vec<Block>>,
+    // mempool stores pending transactions that are received from users but not yet included in a block
     pub mempool: Mempool,
+    // for real-time pub/sub communication, broadcasts all new tx to subscribers.
     pub tx_broadcast: broadcast::Sender<Transaction>,
     pub dal: DALayer,
 }

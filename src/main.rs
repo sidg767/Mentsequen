@@ -1,3 +1,4 @@
+use mentsequen::{api, da::DALayer, sequencer::SequencerState};
 ///Logic
 /// A sequencer is a network service, it must: listen for transactions, expose APIs,
 /// accept websocket connections, communicate with validators/nodes.
@@ -14,11 +15,9 @@
 /// ws handles websocket support and upgarde  from HTTP to Websocket
 /// HTTP status codes needed for api responses, like statuscode:::ok, bad_request, not_found, etc.        
 /// //broadcast is a publish-subscribe channel, many clients subscribe at once, then all recieve the updates, needed for websocket notifications of new transactions
-
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::broadcast;
-use mentsequen::{api, da::DALayer, sequencer::SequencerState};
- #[tokio::main]
+#[tokio::main]
 ///main initializes: async runtime, networking, blockchain state, mempool, websocket broadcasting
 ///HTTP API, shared concurrent state, the genesis block, the Axum server. Basically, node startup
 /// + networking layer + state manager
@@ -36,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     */
     let state = Arc::new(SequencerState::new(dal, tx_sender));
     let app = api::router(state);
-        /*Bind the Axum server to localhost:8080 and start listening for incoming HTTP requests. The server will run
+    /*Bind the Axum server to localhost:8080 and start listening for incoming HTTP requests. The server will run
      indefinitely until it is stopped. Each incoming request will be routed to the appropriate handler based on the
     defined routes. The handlers will have access to the shared AppState through the Extension layer, allowing them to
       read/write the mempool, chain, and broadcast new transactions to websocket clients. */
@@ -44,8 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Axum sequencer running at http://127.0.0.1:8080");
 
     /*bind creates tcp listener on the specified address, serve turns the router into HTTP service and starts accepting
-     incoming connections. After startup: Tokio Runtime, TCP Listener, Accept Connections, Route Requests, Async Handlers,
-     Shared Blockchain State */
+    incoming connections. After startup: Tokio Runtime, TCP Listener, Accept Connections, Route Requests, Async Handlers,
+    Shared Blockchain State */
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await?;
