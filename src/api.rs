@@ -18,9 +18,15 @@ struct NewTx {
     data: String,
 }
 
+#[derive(Deserialize)]
+struct ProduceBlockRequest {
+    max_txs: Option<usize>,
+}
+
 pub fn router(state: Arc<SequencerState>) -> Router {
     Router::new()
         .route("/tx", post(handle_tx))
+        .route("/block", post(handle_block_production))
         .route("/mempool", get(handle_mempool))
         .route("/block/:height", get(handle_block))
         .route("/head", get(handle_head))
@@ -37,23 +43,38 @@ async fn handle_tx(
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "invalid data"})),
-        );
+        )
+            .into_response();
     }
+
     let tx = Transaction::new(data.to_string());
-    // requesting write access to shared mempool, scope is needed cuz Lock is released right after insertion. Holding locks
-    // too long causes contention, latency, throughput collapse. Real sequencers carefully minimize lock duration.
-    state.mempool.add_tx(tx.clone()).await;
+    match state.submit_transaction(tx).await {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({"status": "ok"})),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": err.to_string()})),
+        )
+            .into_response(),
+    }
+}
 
-    //publish tx to all subscribers. let _ means ignore possible errors
-    let _ = state.tx_broadcast.send(tx);
-
-    //At this point a new mempool transaction has been created, stored in the mempool, and broadcast to all websocket
-    // clients. The API response is a simple JSON object indicating success. Real sequencers may return more info,
-    //like the tx id, or a receipt with execution result.
-    (
-        StatusCode::CREATED,
-        Json(serde_json::json!({"status": "ok"})),
-    )
+async fn handle_block_production(
+    Extension(state): Extension<Arc<SequencerState>>,
+    Json(payload): Json<ProduceBlockRequest>,
+) -> impl IntoResponse {
+    let max_txs = payload.max_txs.unwrap_or(1);
+    match state.produce_block(max_txs).await {
+        Ok(block) => (StatusCode::OK, Json(block)).into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": err.to_string()})),
+        )
+            .into_response(),
+    }
 }
 
 // returns all pending transactions in the mempool. Extension(state) gives access to shared AppState, state.mempool.read()

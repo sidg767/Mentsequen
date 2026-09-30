@@ -23,7 +23,7 @@ pub struct Block {
 //Sequential takes O(n) to verify a tx is in a block, merkle takes O(log n).
 impl Block {
     pub fn new(height: u64, prev_hash: String, txs: Vec<Transaction>) -> Self {
-        let merkle = Self::merkle_root(&txs);
+            let merkle = Self::merkle_root(&txs);
         let hash = Self::calculate_hash(height, &prev_hash, &merkle);
         Self {
             height,

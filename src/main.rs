@@ -3,7 +3,7 @@ use mentsequen::{api, da::DALayer, sequencer::SequencerState};
 /// A sequencer is a network service, it must: listen for transactions, expose APIs,
 /// accept websocket connections, communicate with validators/nodes.
 /// It needs Arc(shared ownership, for heap data, across threads, immutable by default but mut with mutex/rwlock)
-/// Sequencers need arc cuz highly concurrent, websocket handlers, mempool updates, block prod, stae readers,
+/// Sequencers need arc cuz highly concurrent, websocket handlers, mempool updates, block prod, state readers,
 /// rpc handlers all need access to shared state. Axum is the HTTP/websocket framework, router defines api routes,
 /// needed cuz sequencer exposes endpoints for submitting transacs, etc.
 /// Json extractor : for incoming requests reads: HTTP body, Content-Type: application/json

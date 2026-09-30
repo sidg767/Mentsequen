@@ -72,6 +72,33 @@ async fn test_block_not_found() {
 }
 
 #[tokio::test]
+async fn test_block_production_endpoint() {
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://127.0.0.1:8080/block")
+        .json(&json!({"max_txs": 1}))
+        .send()
+        .await;
+
+    assert!(response.is_ok());
+    let status = response.unwrap().status();
+    assert_eq!(status, 200);
+
+    let body = client
+        .get("http://127.0.0.1:8080/head")
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+
+    assert!(body.get("height").is_some());
+    assert!(body.get("hash").is_some());
+}
+
+#[tokio::test]
 async fn test_websocket_connection() {
     use futures_util::stream::StreamExt;
     use tokio_tungstenite::connect_async;
