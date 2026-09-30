@@ -85,9 +85,8 @@ async fn test_websocket_connection() {
             // Connection successful
             assert!(read.next().await.is_some() || read.next().await.is_none());
         }
-        Err(_) => {
-            // WebSocket connection attempted
-            assert!(true);
+        Err(err) => {
+            panic!("expected websocket server to accept a connection: {err}");
         }
     }
 }

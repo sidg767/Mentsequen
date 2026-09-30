@@ -7,11 +7,17 @@ pub struct Mempool {
     inner: Arc<RwLock<Vec<Transaction>>>,
 }
 
-impl Mempool {
-    pub fn new() -> Self {
+impl Default for Mempool {
+    fn default() -> Self {
         Self {
             inner: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+}
+
+impl Mempool {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub async fn add_tx(&self, tx: Transaction) {
@@ -31,5 +37,9 @@ impl Mempool {
 
     pub async fn len(&self) -> usize {
         self.inner.read().await.len()
+    }
+
+    pub async fn is_empty(&self) -> bool {
+        self.inner.read().await.is_empty()
     }
 }
